@@ -407,9 +407,24 @@ into seven age groups:
 gathered columns and variable <code>cases</code> for the values. Notice
 there are a lot of missing values in the current representation, so use
 <code>values_drop_na</code> to remove them.</p>
-<pre class="r"><code>who1 &lt;- who %&gt;% 
-  pivot_longer(___, names_to = ___, values_to = ___, values_drop_na = ___)
+<pre class="r"><code>who &lt;-who
+who1 &lt;- who %&gt;% 
+  pivot_longer(cols = new_sp_m014:newrel_f65, names_to = &quot;key&quot;, values_to = &quot;cases&quot;, values_drop_na = TRUE)
 who1</code></pre>
+<pre><code>## # A tibble: 76,046 × 6
+##    country     iso2  iso3   year key          cases
+##    &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt;
+##  1 Afghanistan AF    AFG    1997 new_sp_m014      0
+##  2 Afghanistan AF    AFG    1997 new_sp_m1524    10
+##  3 Afghanistan AF    AFG    1997 new_sp_m2534     6
+##  4 Afghanistan AF    AFG    1997 new_sp_m3544     3
+##  5 Afghanistan AF    AFG    1997 new_sp_m4554     5
+##  6 Afghanistan AF    AFG    1997 new_sp_m5564     2
+##  7 Afghanistan AF    AFG    1997 new_sp_m65       0
+##  8 Afghanistan AF    AFG    1997 new_sp_f014      5
+##  9 Afghanistan AF    AFG    1997 new_sp_f1524    38
+## 10 Afghanistan AF    AFG    1997 new_sp_f2534    36
+## # ℹ 76,036 more rows</code></pre>
 </div>
 <div id="step-2-replace" class="section level3">
 <h3>Step 2: replace</h3>
@@ -420,8 +435,22 @@ unfortunately the names are slightly inconsistent because instead of
 with “new_rel” in the <code>key</code> column. This makes all variable
 names consistent.</p>
 <pre class="r"><code>who2 &lt;- who1 %&gt;% 
-  mutate(key = stringr::str_replace(___, ___, ___))
+  mutate(key = stringr::str_replace(key, &quot;newrel&quot;, &quot;new_rel&quot;))
 who2</code></pre>
+<pre><code>## # A tibble: 76,046 × 6
+##    country     iso2  iso3   year key          cases
+##    &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt;
+##  1 Afghanistan AF    AFG    1997 new_sp_m014      0
+##  2 Afghanistan AF    AFG    1997 new_sp_m1524    10
+##  3 Afghanistan AF    AFG    1997 new_sp_m2534     6
+##  4 Afghanistan AF    AFG    1997 new_sp_m3544     3
+##  5 Afghanistan AF    AFG    1997 new_sp_m4554     5
+##  6 Afghanistan AF    AFG    1997 new_sp_m5564     2
+##  7 Afghanistan AF    AFG    1997 new_sp_m65       0
+##  8 Afghanistan AF    AFG    1997 new_sp_f014      5
+##  9 Afghanistan AF    AFG    1997 new_sp_f1524    38
+## 10 Afghanistan AF    AFG    1997 new_sp_f2534    36
+## # ℹ 76,036 more rows</code></pre>
 </div>
 <div id="step-3-separate" class="section level3">
 <h3>Step 3: separate</h3>
@@ -430,20 +459,63 @@ who2</code></pre>
 in three new variables: <code>new</code>, <code>type</code>, and
 <code>sexage</code></p>
 <pre class="r"><code>who3 &lt;- who2 %&gt;% 
-  ___(___, into = ___, sep = &quot;___&quot;)
+  separate(col = key, into = c(&quot;new&quot;, &quot;type&quot;, &quot;sexage&quot;), sep = &quot;_&quot;)
 who3</code></pre>
+<pre><code>## # A tibble: 76,046 × 8
+##    country     iso2  iso3   year new   type  sexage cases
+##    &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;  &lt;dbl&gt;
+##  1 Afghanistan AF    AFG    1997 new   sp    m014       0
+##  2 Afghanistan AF    AFG    1997 new   sp    m1524     10
+##  3 Afghanistan AF    AFG    1997 new   sp    m2534      6
+##  4 Afghanistan AF    AFG    1997 new   sp    m3544      3
+##  5 Afghanistan AF    AFG    1997 new   sp    m4554      5
+##  6 Afghanistan AF    AFG    1997 new   sp    m5564      2
+##  7 Afghanistan AF    AFG    1997 new   sp    m65        0
+##  8 Afghanistan AF    AFG    1997 new   sp    f014       5
+##  9 Afghanistan AF    AFG    1997 new   sp    f1524     38
+## 10 Afghanistan AF    AFG    1997 new   sp    f2534     36
+## # ℹ 76,036 more rows</code></pre>
 <p>Next separate <code>sexage</code> into <code>sex</code> and
 <code>age</code> by splitting after the first character:</p>
 <pre class="r"><code>who4 &lt;- who3 %&gt;% 
-  ___(___, into = ___, sep = ___)
+  separate(col = sexage, into = c(&quot;sex&quot;, &quot;age&quot;), sep = 1)
 who4</code></pre>
+<pre><code>## # A tibble: 76,046 × 9
+##    country     iso2  iso3   year new   type  sex   age   cases
+##    &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt;
+##  1 Afghanistan AF    AFG    1997 new   sp    m     014       0
+##  2 Afghanistan AF    AFG    1997 new   sp    m     1524     10
+##  3 Afghanistan AF    AFG    1997 new   sp    m     2534      6
+##  4 Afghanistan AF    AFG    1997 new   sp    m     3544      3
+##  5 Afghanistan AF    AFG    1997 new   sp    m     4554      5
+##  6 Afghanistan AF    AFG    1997 new   sp    m     5564      2
+##  7 Afghanistan AF    AFG    1997 new   sp    m     65        0
+##  8 Afghanistan AF    AFG    1997 new   sp    f     014       5
+##  9 Afghanistan AF    AFG    1997 new   sp    f     1524     38
+## 10 Afghanistan AF    AFG    1997 new   sp    f     2534     36
+## # ℹ 76,036 more rows</code></pre>
 <p>Finally separate <code>age</code> into <code>age_low</code> and
 <code>age_high</code> by splitting after the second character (first
 replace “014” with “0014” and “65” with “65100”):</p>
 <pre class="r"><code>who5 &lt;- who4 %&gt;% 
-  mutate(age = stringr::str_replace(___, ___, ___)) %&gt;%
-  mutate(age = stringr::str_replace(___, ___, ___)) %&gt;%
-  separate(___, into = ___, sep = ___)</code></pre>
+  mutate(age = stringr::str_replace(age, &quot;014&quot;, &quot;0014&quot;)) %&gt;%
+  mutate(age = stringr::str_replace(age, &quot;65&quot;, &quot;65100&quot;)) %&gt;%
+  separate(age, into = c(&quot;age_low&quot;, &quot;age_high&quot;), sep = 2)
+who5</code></pre>
+<pre><code>## # A tibble: 76,046 × 10
+##    country     iso2  iso3   year new   type  sex   age_low age_high cases
+##    &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;    &lt;dbl&gt;
+##  1 Afghanistan AF    AFG    1997 new   sp    m     00      14           0
+##  2 Afghanistan AF    AFG    1997 new   sp    m     15      24          10
+##  3 Afghanistan AF    AFG    1997 new   sp    m     25      34           6
+##  4 Afghanistan AF    AFG    1997 new   sp    m     35      44           3
+##  5 Afghanistan AF    AFG    1997 new   sp    m     45      54           5
+##  6 Afghanistan AF    AFG    1997 new   sp    m     55      64           2
+##  7 Afghanistan AF    AFG    1997 new   sp    m     65      100          0
+##  8 Afghanistan AF    AFG    1997 new   sp    f     00      14           5
+##  9 Afghanistan AF    AFG    1997 new   sp    f     15      24          38
+## 10 Afghanistan AF    AFG    1997 new   sp    f     25      34          36
+## # ℹ 76,036 more rows</code></pre>
 </div>
 <div id="step-4-drop" class="section level3">
 <h3>Step 4: drop</h3>
@@ -451,18 +523,48 @@ replace “014” with “0014” and “65” with “65100”):</p>
 Hence drop column <code>new</code> as well as <code>iso2</code> and
 <code>iso3</code> since they’re redundant.</p>
 <pre class="r"><code># check that new is constant
-who5 %&gt;% ___
-
-# drop redundant columns
+who5 %&gt;% distinct(new)</code></pre>
+<pre><code>## # A tibble: 1 × 1
+##   new  
+##   &lt;chr&gt;
+## 1 new</code></pre>
+<pre class="r"><code># drop redundant columns
 who6 &lt;- who5 %&gt;% 
-  ___(___, ___, ___)
+  select(-new, -iso2, -iso3)
 who6</code></pre>
+<pre><code>## # A tibble: 76,046 × 7
+##    country      year type  sex   age_low age_high cases
+##    &lt;chr&gt;       &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;    &lt;dbl&gt;
+##  1 Afghanistan  1997 sp    m     00      14           0
+##  2 Afghanistan  1997 sp    m     15      24          10
+##  3 Afghanistan  1997 sp    m     25      34           6
+##  4 Afghanistan  1997 sp    m     35      44           3
+##  5 Afghanistan  1997 sp    m     45      54           5
+##  6 Afghanistan  1997 sp    m     55      64           2
+##  7 Afghanistan  1997 sp    m     65      100          0
+##  8 Afghanistan  1997 sp    f     00      14           5
+##  9 Afghanistan  1997 sp    f     15      24          38
+## 10 Afghanistan  1997 sp    f     25      34          36
+## # ℹ 76,036 more rows</code></pre>
 </div>
 <div id="last-step-use-pipe" class="section level3">
 <h3>Last step: use pipe</h3>
 <p>You have written the code a piece at a time, assigning each interim
 result to a new variable. Instead, gradually build up a complex
 pipe.</p>
+<pre class="r"><code>who_via_pipe &lt;- who |&gt;
+  pivot_longer(cols = new_sp_m014:newrel_f65, names_to = &quot;key&quot;, values_to = &quot;cases&quot;, values_drop_na = TRUE) |&gt;
+  mutate(key = stringr::str_replace(key, &quot;newrel&quot;, &quot;new_rel&quot;)) |&gt;
+  separate(col = key, into = c(&quot;new&quot;, &quot;type&quot;, &quot;sexage&quot;), sep = &quot;_&quot;) |&gt;
+  separate(col = sexage, into = c(&quot;sex&quot;, &quot;age&quot;), sep = 1) |&gt;
+  mutate(age = stringr::str_replace(age, &quot;014&quot;, &quot;0014&quot;)) |&gt;
+  mutate(age = stringr::str_replace(age, &quot;65&quot;, &quot;65100&quot;)) |&gt;
+  separate(age, into = c(&quot;age_low&quot;, &quot;age_high&quot;), sep = 2) |&gt;
+  select(-new, -iso2, -iso3)
+
+# Checking if the result is actually the same
+all.equal(who6, who_via_pipe)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
 </div>
 
 
