@@ -56,7 +56,6 @@ library(dplyr)
 Gather together all the columns from `new_sp_m014` to `newrel_f65`. Use the variable `key` for the gathered columns and variable `cases` for the values. Notice there are a lot of missing values in the current representation, so use `values_drop_na` to remove them.
 
 ```{r eval=TRUE, echo=TRUE}
-who <-who
 who1 <- who %>% 
   pivot_longer(cols = new_sp_m014:newrel_f65, names_to = "key", values_to = "cases", values_drop_na = TRUE)
 who1

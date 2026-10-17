@@ -407,8 +407,7 @@ into seven age groups:
 gathered columns and variable <code>cases</code> for the values. Notice
 there are a lot of missing values in the current representation, so use
 <code>values_drop_na</code> to remove them.</p>
-<pre class="r"><code>who &lt;-who
-who1 &lt;- who %&gt;% 
+<pre class="r"><code>who1 &lt;- who %&gt;% 
   pivot_longer(cols = new_sp_m014:newrel_f65, names_to = &quot;key&quot;, values_to = &quot;cases&quot;, values_drop_na = TRUE)
 who1</code></pre>
 <pre><code>## # A tibble: 76,046 × 6

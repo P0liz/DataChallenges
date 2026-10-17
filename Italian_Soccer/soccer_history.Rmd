@@ -17,3 +17,96 @@ This challenge explores all matches of Italian soccer Serie A league from 1993 t
 1. Using dplyr and tidyr packages (no for loops!), compute statistics for every team (matches, wins, loses, draws, points, points per match). Hint: mutate a column with the outcome of the match (for instance, H = home teams wins, A = away team wins, P = draw). Then group by team and outcome (home and away) and hence spread the outcome. Do this step without the use of AI.
 1. Come up with at least 3 data questions on the data at hand. Just write the questions, do not find the answers.
 
+### Setup
+```{r eval=TRUE, echo=TRUE}
+library(rvest)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(lubridate)
+```
+
+
+### Scraping only link relative to Serie A 
+```{r eval=TRUE, echo=TRUE}
+base_url <- "http://www.football-data.co.uk/"
+page_url <- paste0(base_url, "italym.php")
+
+serie_a_urls <- read_html(page_url) |>
+  # Using XPath to select only the links that contain "I1.csv" and have the text "Serie A"
+  html_elements(xpath = "//a[contains(@href, 'I1.csv') and text() = 'Serie A']") |>
+  html_attr("href") |>
+  url_absolute(base_url)
+serie_a_urls
+
+```
+
+### Download, select columns, create a tibble and filter rows with valid Date
+```{r eval=TRUE, echo=TRUE}
+serie_a_df <- serie_a_urls |>
+  map(\(url) {
+    read_csv(
+      file = url, # Setting url 
+      col_select = c(Date, HomeTeam, AwayTeam, FTHG, FTAG), # columns selection
+      # Forcing the column types to avoid parsing issues
+      col_types = cols(
+        Date = col_character(),
+        HomeTeam = col_character(),
+        AwayTeam = col_character(),
+        FTHG = col_integer(),
+        FTAG = col_integer()
+      ),
+      # Handling duplicate column names by appending a suffix to make them unique
+      name_repair = "unique_quiet",
+      # No Debugging messages for column types
+      show_col_types = FALSE
+    )
+  }) |>
+  list_rbind() |>  # Combining all data frames into a single tibble
+  filter(!is.na(Date) & Date != "") |>
+  mutate(Date = dmy(Date))
+serie_a_df
+
+```
+
+### Statistics for every team
+```{r eval=TRUE, echo=TRUE}
+# Creating Result column to track teams performance
+serie_a_df <- serie_a_df |>
+  mutate(Result = ifelse(FTHG == FTAG, "P", ifelse(FTHG > FTAG, "H", "A")))
+serie_a_df
+
+# Home matches performance
+HomeCount <- serie_a_df |>
+  count(HomeTeam, Result) |> 
+  pivot_wider(names_from = Result, values_from = n, values_fill = 0)
+HomeCount
+
+# Away matches performance
+AwayCount <- serie_a_df |>
+  group_by(AwayTeam, Result) |> 
+  summarise(n = n(), .groups = "drop") |> 
+  pivot_wider(names_from = Result, values_from = n, values_fill = 0)
+AwayCount
+
+# Combining tables to compute stats
+Stats <- full_join(HomeCount, AwayCount, join_by(HomeTeam==AwayTeam)) |>
+  mutate(
+    Wins = H.x + A.y,
+    Draws  = P.x + P.y,
+    Losses = A.x + H.y,
+    Matches = Wins + Draws + Losses,
+    Points = (Wins * 3) + (Draws * 1),
+    PointsPerMatch = round(Points / Matches, 2)
+  ) |>
+  select(Team = HomeTeam, Matches, Wins, Draws, Losses, Points, PointsPerMatch) |>
+  arrange(-PointsPerMatch)
+Stats
+
+```
+
+### Research Questions
+1. *Home Advantage*: How significant is the home-field advantage across Serie A history, and which teams display the largest performance gap between home and away matches?
+2. *Goal-Scoring Trends*: Has the average number of goals per match changed significantly from 1993 to the present, reflecting an evolution toward more offensive or defensive tactics?
+3. *Attack vs Defense*: Does defensive focus (fewer goals conceded) correlate more strongly with a high points-per-match average than offensive tactics (most goals scored)?
