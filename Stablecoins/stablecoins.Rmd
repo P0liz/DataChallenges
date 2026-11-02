@@ -1,0 +1,168 @@
+---
+title: "Stablecoins — compare USDC, USDT and DAI transaction sizes and volumes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE, message = FALSE)
+```
+
+We want to compare three major Ethereum stablecoins:
+
+-  USDC (smart contract address: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48)
+-  USDT (smart contract address: 0xdac17f958d2ee523a2206206994597c13d831ec7)
+-  DAI (smart contract address: 0x6b175474e89094c44da98b954eedeac495271d0f)
+
+
+We will investigate two questions:
+
+1. How do their transfer sizes differ?
+2. How much transfer volume does each stablecoin generate?
+
+Our workflow is:
+
+```text
+Ethereum
+   ↓
+Etherscan
+   ↓
+ERC-20 transfer events
+   ↓
+R / tidyverse
+   ↓
+transfer sizes + transfer volumes
+```
+
+We use Etherscan to retrieve the already indexed ERC-20 transfer events. Etherscan’s `tokentx` endpoint can be filtered directly by token contract, so we do not need to download unrelated ERC-20 transfers first. 
+
+We use the term transfer rather than transaction throughout the lab: one Ethereum transaction can generate several ERC-20 transfer events.
+
+```{r, echo = FALSE, eval = TRUE}
+# Setup
+library(tidyverse)
+library(httr2)
+```
+
+```{r, echo = FALSE, eval = TRUE}
+api_key <- Sys.getenv("ETHERSCAN_API_KEY")
+# Set wd
+data_dir <- if (basename(getwd()) == "Stablecoins") "data" else file.path("Stablecoins", "data")
+
+fetch_tokens <- function(address, name) {
+  response <- request("https://api.etherscan.io/v2/api") |>
+    req_url_query(
+      chainid = 1,
+      module = "account",
+      action = "tokentx",
+      address = address,
+      startblock = 0,
+      endblock = 99999999,
+      page = 1,
+      offset = 1000,
+      sort = "asc",
+      apikey = api_key
+    ) |>
+    req_perform() |>
+    resp_body_json(simplifyVector = TRUE)
+
+  tokens <- response$result |>
+    as_tibble()
+
+  dir.create(data_dir, showWarnings = FALSE, recursive = TRUE)
+  write_csv(tokens, file.path(data_dir, paste0(name, ".csv")))
+  tokens
+}
+
+# Save tokens files for each coin
+USDC <- fetch_tokens("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "USDC")
+USDT <- fetch_tokens("0xdac17f958d2ee523a2206206994597c13d831ec7", "USDT")
+DAI <-fetch_tokens("0x6b175474e89094c44da98b954eedeac495271d0f", "DAI")
+
+```
+
+### 1. How do the coins transfer sizes differ?
+```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+# Combine the datasets, filter to legitimate token transfers, and convert to USD to compare
+all_transfers <- bind_rows(
+  USDC = USDC,
+  USDT = USDT,
+  DAI  = DAI,
+  .id = "coin"
+) |>
+  filter(tokenSymbol == coin) |>
+  mutate(value = as.numeric(value) / (10 ^ as.numeric(tokenDecimal))) |>
+  filter(value >= 0.01) # excluding failed transactions
+
+# Computing stats 
+transfer_sizes <- all_transfers |>
+  group_by(coin) |>
+  summarise(
+    n_transfers = n(),
+    median = median(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    p25 = quantile(value, 0.25, na.rm = TRUE),
+    p75 = quantile(value, 0.75, na.rm = TRUE),
+    max = max(value, na.rm = TRUE)
+  )
+
+transfer_sizes
+```
+
+The transfer sizes differ significantly across the three stablecoins:
+- **USDC** shows the largest transfer sizes, with the highest median ($50.00) and mean ($2,552.00).
+- **DAI** has intermediate transfer sizes, with a median of $26.33.
+- **USDT** exhibits the smallest transfer sizes, with a median of just $5.00 and 75% of transfers under $28, reflecting more high-frequency or retail-like transactions.
+
+```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+# Density function plot to see the differences
+ggplot(all_transfers, aes(x = value, fill = coin, color = coin)) +
+  geom_density(alpha = 0.3) +
+  scale_x_log10(
+    breaks = c(0.1, 1, 10, 100, 1000, 10000),
+    labels = scales::dollar_format()
+  ) +
+  labs(
+    title = "Transfer Size Density by Stablecoin",
+    x = "Transfer Size in USD (log scale)",
+    y = "Density"
+  ) +
+  theme_minimal()
+```
+
+The peak for USDT is concentrated around micro-payments of $1-$5, while USDC shifts noticeably to the right, centered around $50-$200. 
+All three tokens show strongly right-skewed distributions (mean >> median), meaning that a small number of very large transfers heavily pull up the average.
+
+
+### 2. How much transfer volume does each stablecoin generate?
+```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+transfer_volumes <- all_transfers |>
+  group_by(coin) |>
+  summarise(
+    total_volume_usd = sum(value, na.rm = TRUE)
+  ) |>
+  mutate(
+    volume_share_pct = round(100 * total_volume_usd / sum(total_volume_usd), 2)
+  ) |>
+  arrange(desc(total_volume_usd))
+
+transfer_volumes
+```
+
+Across the analyzed sample:
+- **USDC** generates the majority of the transfer volume, with approximately **58.6%** of total volume.
+- **USDT** generates **21.7%** of total volume, despite recording the highest number of transfers (756), because its individual transfers are much smaller.
+- **DAI** generates **19.7%** of total volume, having a comparable percentage with USDT, even though it has a lower number of transactions.
+
+```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+ggplot(transfer_volumes, aes(x = fct_reorder(coin, total_volume_usd), y = total_volume_usd / 1e3, fill = coin)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Total Transfer Volume by Stablecoin",
+    x = "Stablecoin",
+    y = "Total Volume (Thousands USD)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
