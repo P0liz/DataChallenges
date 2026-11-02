@@ -1,0 +1,138 @@
+---
+title: "Concentration of S&P 500 index"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE, echo = TRUE, message = FALSE)
+```
+
+## Assignment
+In this data challege we study how concentrated the S&P 500 is among its constituent companies. 
+
+1. The S&P 500 (Standard & Poor's 500) is a stock market index that tracks the performance of 500 of the largest publicly traded companies in the United States.
+2. It covers roughly 80% of the total value of the U.S. stock market.
+3. It is a market-capitalization-weighted index. Larger companies have a much bigger impact on its value than smaller components
+
+
+We will use:
+
+```{r, echo = FALSE, eval = TRUE}
+library(tidyverse)
+library(tidyquant)
+library(ineq)
+```
+
+The three packages have different roles:
+
+```text
+tidyquant    retrieve the S&P 500 constituents and weights
+tidyverse    manipulate and visualize the data
+ineq         calculate the Lorenz curve and Gini coefficient
+```
+
+Our main questions are:
+
+1. How unequal are the company weights in the S&P 500?
+2. How much of the index is represented by its largest companies?
+3. What does the Lorenz curve tell us about concentration?
+4. What is the Gini coefficient of the S&P 500 weights?
+
+## Analysis
+
+### Setup
+```{r, echo = FALSE, eval = FALSE}
+sp500 <- tq_index("SP500")
+write_csv(sp500, "sp500.csv")
+```
+
+```{r, echo = FALSE, eval = TRUE}
+sp500 <- read_csv("sp500.csv")
+sp500
+```
+
+### 1. Company Weights
+```{r, echo = FALSE, eval = TRUE}
+sp500 |>
+  # Ranking by weight
+  arrange(desc(weight)) |>
+  mutate(rank = row_number()) |>
+  ggplot(aes(x = rank, y = weight)) +
+  geom_area(fill = "blue", alpha = 0.4) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_vline(xintercept = 20, linetype = "dashed", color = "red") +
+  # Highlighting that mosto of the weight is concentrated in the top 20
+  annotate("text", x = 20, y = max(sp500$weight) * 0.8, 
+           label = "Top 20", color = "red", hjust = 0, fontface = "bold") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Distribution of Weight per Rank",
+    x = "Rank (Position)", y = "Weight (%)"
+  ) +
+  theme_minimal()
+```
+
+The chart illustrates a classic long-tail distribution, highlighting severe inequality among company weights. There is a steep drop-off across the top 20 companies, after which the curve rapidly flattens near zero.
+This shows that while a few dominant firms carry individual weights of several percentage points, the vast majority of the 500 components (actually 505) hold individually negligible shares (often below 0.1%).
+
+### 2. Index VS its Largest Companies
+```{r, echo = FALSE, eval = TRUE}
+sp500_donut <- sp500 |>
+  arrange(desc(weight)) |>
+  # One group for each top 10 company and a single gruop for all the others
+  mutate(
+    gruppo = if_else(row_number() <= 10, company, "Remaining Companies")
+  ) |>
+  group_by(gruppo) |>
+  summarise(weight = sum(weight)) |>
+  # Reorder groups based on weight (since by default ggplot levels are alphabetical)
+  mutate(gruppo = fct_reorder(gruppo, weight))
+
+ggplot(sp500_donut, aes(x = 2, y = weight, fill = gruppo)) +
+  geom_col(color = "#ffffff") +
+  coord_polar(theta = "y") +  # pie chart
+  xlim(0.1, 2.5) +
+  theme_void() +
+  scale_fill_viridis_d(option = "turbo") +
+  labs(title = "Weight of the top 10 companies compared to the whole S&P 500", fill = "Company")
+```
+
+Looking at company weights, we can see that about a third of the entire index is accounted for by just the top 10 companies.
+This clearly shows that only a few companies hold far more influence over the index than hundreds of others combined.
+
+
+### 3. Lorenz curve
+```{r, echo = FALSE, eval = TRUE}
+# Lorenz Curve
+lc <- Lc(sp500$weight)
+
+tibble(
+  p = lc$p, # Cumulative companies
+  L = lc$L  # Cumulative weight
+) |>
+  ggplot(aes(x = p, y = L)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Lorenz Curve for S&P 500 Company Weights",
+    x = "Cumulative Share of Companies",
+    y = "Cumulative Share of Index Weight"
+  ) +
+  theme_minimal()
+
+```
+
+The curve deviates substantially from the diagonal, remaining low and flat across most of the horizontal axis before curving sharply upward on the far right. 
+This steep upward slope at the end highlights that the vast majority of companies add very little to the cumulative total, while the largest firms at the very end account for the biggest part of the index's weight. 
+The large gap between the curve and the diagonal visually confirms this high concentration.
+
+
+### 4. Gini coefficient
+```{r, echo = TRUE, eval = TRUE}
+gini <- Gini(sp500$weight)
+gini
+```
+
+With a value of about 0.71, the Gini coefficient confirms an exceptionally high degree of concentration.
+This demonstrates that the S&P 500 is far from being evenly diversified;
+an investment in the index is heavily dependent on the performance of a tiny group of top companies.
