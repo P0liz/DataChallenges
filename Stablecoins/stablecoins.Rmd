@@ -37,13 +37,13 @@ We use Etherscan to retrieve the already indexed ERC-20 transfer events. Ethersc
 
 We use the term transfer rather than transaction throughout the lab: one Ethereum transaction can generate several ERC-20 transfer events.
 
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 # Setup
 library(tidyverse)
 library(httr2)
 ```
 
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 api_key <- Sys.getenv("ETHERSCAN_API_KEY")
 # Set wd
 data_dir <- if (basename(getwd()) == "Stablecoins") "data" else file.path("Stablecoins", "data")
@@ -81,7 +81,7 @@ DAI <-fetch_tokens("0x6b175474e89094c44da98b954eedeac495271d0f", "DAI")
 ```
 
 ### 1. How do the coins transfer sizes differ?
-```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+```{r, echo = TRUE, eval = TRUE, warning=FALSE}
 # Combine the datasets, filter to legitimate token transfers, and convert to USD to compare
 all_transfers <- bind_rows(
   USDC = USDC,
@@ -113,7 +113,7 @@ The transfer sizes differ significantly across the three stablecoins:
 - **DAI** has intermediate transfer sizes, with a median of $26.33.
 - **USDT** exhibits the smallest transfer sizes, with a median of just $5.00 and 75% of transfers under $28, reflecting more high-frequency or retail-like transactions.
 
-```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+```{r, echo = TRUE, eval = TRUE, warning=FALSE}
 # Density function plot to see the differences
 ggplot(all_transfers, aes(x = value, fill = coin, color = coin)) +
   geom_density(alpha = 0.3) +
@@ -134,7 +134,7 @@ All three tokens show strongly right-skewed distributions (mean >> median), mean
 
 
 ### 2. How much transfer volume does each stablecoin generate?
-```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+```{r, echo = TRUE, eval = TRUE, warning=FALSE}
 transfer_volumes <- all_transfers |>
   group_by(coin) |>
   summarise(
@@ -153,7 +153,7 @@ Across the analyzed sample:
 - **USDT** generates **21.7%** of total volume, despite recording the highest number of transfers (756), because its individual transfers are much smaller.
 - **DAI** generates **19.7%** of total volume, having a comparable percentage with USDT, even though it has a lower number of transactions.
 
-```{r, echo = FALSE, eval = TRUE, warning=FALSE}
+```{r, echo = TRUE, eval = TRUE, warning=FALSE}
 ggplot(transfer_volumes, aes(x = fct_reorder(coin, total_volume_usd), y = total_volume_usd / 1e3, fill = coin)) +
   geom_col() +
   coord_flip() +

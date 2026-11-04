@@ -17,7 +17,7 @@ In this data challege we study how concentrated the S&P 500 is among its constit
 
 We will use:
 
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 library(tidyverse)
 library(tidyquant)
 library(ineq)
@@ -41,18 +41,18 @@ Our main questions are:
 ## Analysis
 
 ### Setup
-```{r, echo = FALSE, eval = FALSE}
+```{r, echo = TRUE, eval = FALSE}
 sp500 <- tq_index("SP500")
 write_csv(sp500, "sp500.csv")
 ```
 
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 sp500 <- read_csv("sp500.csv")
 sp500
 ```
 
 ### 1. Company Weights
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 sp500 |>
   # Ranking by weight
   arrange(desc(weight)) |>
@@ -76,7 +76,7 @@ The chart illustrates a classic long-tail distribution, highlighting severe ineq
 This shows that while a few dominant firms carry individual weights of several percentage points, the vast majority of the 500 components (actually 505) hold individually negligible shares (often below 0.1%).
 
 ### 2. Index VS its Largest Companies
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 sp500_donut <- sp500 |>
   arrange(desc(weight)) |>
   # One group for each top 10 company and a single gruop for all the others
@@ -102,7 +102,7 @@ This clearly shows that only a few companies hold far more influence over the in
 
 
 ### 3. Lorenz curve
-```{r, echo = FALSE, eval = TRUE}
+```{r, echo = TRUE, eval = TRUE}
 # Lorenz Curve
 lc <- Lc(sp500$weight)
 
