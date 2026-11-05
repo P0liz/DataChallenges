@@ -1,0 +1,137 @@
+---
+title: "How life expectancy changes over time for each continent?"
+output:
+  html_document:
+    theme: spacelab
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+# cache results
+knitr::opts_chunk$set(cache=FALSE, echo = TRUE, eval = TRUE, message=FALSE, warning = FALSE, fig.align='center')
+```
+
+Life expectancy for a country is the mean length of life over people of a country. Using variables life expectancy and population of a country:
+
+1.  derive a formula to compute life expectancy of a continent (a group of countries)
+2.  plot how life expectancy changed over time for each continent
+3.  do the same for the whole planet
+
+```{r}
+library(tidyverse)
+library(gapminder)
+library(broom)
+```
+
+### 1. Life expectancy of a Continent
+Since every country has a different population size we cannot just calculate the mean of the countries' life expectancies, but we need to account for their population.
+The life expectancy of a continent is the weighted mean of the life expectancies of each of its countries:
+
+$$
+\text{LifeExp}_{\text{continent}} = \frac{\sum_{i=1}^{n} (\text{LifeExp}_i \times \text{Pop}_i)}{\sum_{i=1}^{n} \text{Pop}_i}
+$$
+
+where $n$ is the number of countries in the continent, $\text{LifeExp}_i$ is the life expectancy of country $i$, and $\text{Pop}_i$ is its population.
+
+```{r}
+cont_lifeExp <- gapminder |>
+  # Compute life expectancy for each continent and year in the dataset
+  group_by(continent, year) |>
+  summarise(
+    lifeExp_continent = sum(lifeExp * as.numeric(pop)) / sum(as.numeric(pop)),
+    .groups = "drop")
+
+cont_lifeExp
+```
+
+
+### 2. Continent's life expectancy changing over time
+```{r}
+ggplot(cont_lifeExp, aes(year, lifeExp_continent, color = continent)) +
+    geom_line(linewidth = 0.5, alpha = 0.8, show.legend = TRUE) +
+    scale_colour_manual(values = continent_colors) +
+    labs(
+      title = "Continents' life expectancy over time",
+      subtitle = "Population-weighted mean from 1952 to 2007",
+      x = "Year",
+      y = "Life Expectancy (years)"
+    ) +
+    theme_classic()
+```
+
+To quantitatively evaluate how life expectancy has progressed across continents, we fit a linear model (`lifeExp ~ year`) for each continent. 
+The slope represents the average years of life expectancy gained per calendar year:
+
+```{r}
+growth_rates <- cont_lifeExp |>
+  # fit linear regression model for each continent
+  group_by(continent) |>
+  summarise(
+    model = list(lm(lifeExp_continent ~ year)),
+    total_gain = last(lifeExp_continent) - first(lifeExp_continent),
+    .groups = "drop"
+  ) |>
+  # transform model output into a table with: term, estimate (β), std.error, statistic and p.value
+  mutate(tidy_model = map(model, broom::tidy)) |>
+  unnest(tidy_model) |>
+  # filter by year which is the slope coefficient (our growth rate)
+  filter(term == "year") |>
+  # compute final values
+  transmute(
+    Continent = continent,
+    `Gain / Year (yrs)` = round(estimate, 3),
+    `Gain / Decade (yrs)` = round(estimate * 10, 2),
+    `Total Gain (yrs)` = round(total_gain, 2),
+    `R-squared` = map_dbl(model, ~ round(broom::glance(.x)$r.squared, 3))
+  ) |>
+  arrange(desc(`Gain / Year (yrs)`))
+
+growth_rates
+```
+
+Life expectancy increased substantially across all continents between 1952 and 2007, but the pace and trajectory varied markedly. 
+Asia achieved the most rapid expansion, gaining nearly 4.9 years per decade (+26.5 years total), probably driven by dramatic improvements in basic sanitation and public health in populous nations such as China and India. 
+The Americas maintained steady and consistent progress (+2.77 years per decade). In contrast, Europe and Oceania exhibited more moderate annual gains (about 2.2 years per decade) due to a demographic ceiling effect, as their life expectancies were already high in 1952 (above 65 years). 
+Meanwhile, Africa experienced solid progress until the late 1980s, followed by a noticeable slowdown and plateau throughout the 1990s caused by the spread of the HIV/AIDS epidemic and regional conflicts.
+
+
+### 3. World's life expectancy 
+
+Following the same weighted mean approach across all countries on Earth:
+
+$$
+\text{LifeExp}_{\text{world}} = \frac{\sum_{i=1}^{N} (\text{LifeExp}_i \times \text{Pop}_i)}{\sum_{i=1}^{N} \text{Pop}_i}
+$$
+
+```{r}
+world_lifeExp <- gapminder |>
+  group_by(year) |>
+  summarise(
+    lifeExp_world = sum(lifeExp * as.numeric(pop)) / sum(as.numeric(pop)),
+    .groups = "drop"
+  )
+
+world_lifeExp
+```
+
+To compare global progress with the continents, we can add the world average (black line) directly onto the plot:
+
+```{r}
+ggplot() +
+  geom_line(data = cont_lifeExp, aes(year, lifeExp_continent, color = continent), linewidth = 0.5, alpha = 0.8) +
+  geom_line(data = world_lifeExp, aes(year, lifeExp_world, linetype = "World"), color = "black", linewidth = 1) +
+  scale_colour_manual(values = continent_colors, name = "Continent") +
+  scale_linetype_manual(values = c("World" = "dashed"), name = "") +
+  labs(
+    title = "Life Expectancy over Time: Continents vs. World Average",
+    subtitle = "Population-weighted mean from 1952 to 2007",
+    x = "Year",
+    y = "Life Expectancy (years)"
+  ) +
+  theme_classic()
+```
+
+Adding the world line makes it easy to see how each continent compares to the global average. 
+Overall, world life expectancy went up from about 46 to 66 years between 1952 and 2007. The world line follows Asia's curve very closely: since Asia makes up about 60% of the world's population, it has the biggest weight in the calculation. 
+Across all these years, Europe, Oceania, and the Americas stayed well above the world average. On the other hand, Africa stayed far below the global trend, and this gap became even larger after 1990. 
+In general, while life expectancy increased worldwide, the differences between continents are still very visible.
