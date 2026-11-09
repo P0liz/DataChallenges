@@ -1,0 +1,133 @@
+---
+title: "Diamonds quality"
+output:
+  html_document:
+    theme: spacelab
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+# cache results
+knitr::opts_chunk$set(cache=FALSE, echo = TRUE, eval = TRUE, message=FALSE, warning = FALSE, fig.align='center')
+```
+In this data challenge we explore the qualities of diamonds and their association with price using the `ggplot2::diamonds` dataset:
+
+1. First of all, observe that low quality diamonds (with respect to cut, color and clarity) are more expensive.
+2. Using models, find an explanation and solve the apparent paradox.
+
+Recall that:
+
+* best cut is Ideal, worst is Fair
+* best color is D, worst is J
+* best clarity is IF, worst is I1
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(broom)
+```
+
+
+### Price of diamonds in relation to their quality
+Since quality in the diamonds dataset is captured by three categorical variables (`cut`, `color`, and `clarity`), we create a boxplot on a logarithmic price scale
+to normalize the right-skewed distribution, handle the heavy tail of high-priced diamonds, and clearly display medians and means (red diamonds):
+
+```{r}
+# 1. Price vs Cut (Fair is worst, Ideal is best)
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_boxplot(alpha = 0.6, fill = "white", color = "black", width = 0.3) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+  scale_y_log10() +
+  labs(
+    title = "Price vs Cut Quality",
+    subtitle = "Red diamond = mean",
+    x = "Cut (Fair: worst -> Ideal: best)",
+    y = "Price ($)"
+  ) +
+  theme_minimal()
+
+# 2. Price vs Color (D is best, J is worst)
+ggplot(diamonds, aes(x = color, y = price)) +
+  geom_boxplot(alpha = 0.6, fill = "white", color = "black", width = 0.3) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+  scale_y_log10() +
+  labs(
+    title = "Price vs Color Quality",
+    subtitle = "Red diamond = mean",
+    x = "Color (D: best -> J: worst)",
+    y = "Price ($)"
+  ) +
+  theme_minimal()
+
+# 3. Price vs Clarity (I1 is worst, IF is best)
+ggplot(diamonds, aes(x = clarity, y = price)) +
+  geom_boxplot(alpha = 0.6, fill = "white", color = "black", width = 0.3) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+  scale_y_log10() +
+  labs(
+    title = "Price vs Clarity Quality",
+    subtitle = "Red diamond = mean",
+    x = "Clarity (I1: worst -> IF: best)",
+    y = "Price ($)"
+  ) +
+  theme_minimal()
+```
+
+From these plots we can clearly observe the **paradox**:
+- **Color:** diamonds with the worst color (`J`) have a noticeably higher median and mean price compared to diamonds with the best color (`D`).
+- **Clarity:** diamonds with lower clarity (such as `SI2` or `I1`) tend to cost more on average than diamonds with flawless clarity (`IF` or `VVS1`).
+- **Cut:** the worst cut (`Fair`) has a higher median price than the best cut (`Ideal`).
+
+
+### Solving the paradox
+
+To explain why lower-quality diamonds appear more expensive, we look at diamond weight (`carat`):
+
+```{r}
+cor(diamonds$carat, diamonds$price)
+
+# Mean carat weight across colors and clarities
+diamonds |> 
+  group_by(color) |> 
+  summarise(mean_carat = mean(carat))
+
+diamonds |> 
+  group_by(clarity) |> 
+  summarise(mean_carat = mean(carat))
+```
+
+The correlation of 0.92 confirms that weight is the primary driver of price. 
+Furthermore, lower-quality diamonds are on average much larger: diamonds with color `J` (worst) weigh 1.16 carats compared to 0.66 carats for color `D` (best). 
+Similarly, clarity `I1` (worst) averages 1.28 carats versus 0.50 carats for `IF` (best). 
+In nature, large crystals are far more likely to contain flaws, so lower-quality diamonds cost more simply because they are much heavier.
+
+#### Multiple Linear Regression
+To see how quality really affects price when comparing diamonds of the same weight, we fit a multiple linear regression model. 
+We use a log scale because the relationship between size and price is non-linear: larger diamonds become exponentially more expensive due to rarity, and quality affects price in percentage terms rather than by a fixed dollar amount.
+
+```{r}
+mod_diamonds <- lm(log(price) ~ log(carat) + cut + color + clarity, data = diamonds)
+broom::glance(mod_diamonds)
+```
+
+The model explains **98.3%** of the variance in log-price ($R^2 \approx 0.983$). 
+Once we control for carat weight, the paradox is solved: holding size constant, higher quality (better cut, color, and clarity) consistently increases diamond price.
+
+We can see this directly in the plot below. At any fixed carat weight, higher-quality diamonds consistently stay above lower-quality ones:
+
+```{r}
+ggplot(diamonds, aes(x = carat, y = price, color = color)) +
+  geom_point(alpha = 0.03, size = 0.5) +
+  scale_x_continuous(trans = "log2") +
+  scale_y_continuous(trans = "log2") +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Carat vs. Price across Color Categories",
+    subtitle = "At any fixed weight, better color (D) is consistently above worse color (J)",
+    x = "Carat",
+    y = "Price ($)",
+    color = "Color"
+  ) +
+  theme_minimal()
+```
+
