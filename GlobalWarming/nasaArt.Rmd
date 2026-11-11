@@ -69,34 +69,42 @@ head(temp, n = 12)
 ```
 
 
-### Climate data art: *The Climate Sunflower*
+### Climate data art: *The Climate Spirograph*
 
-Instead of a traditional time series, rectangular grid, or circular spiral, we can arrange monthly temperature anomalies using **phyllotaxis**: 
-the mathematical pattern found in sunflowers and other botanical structures.
+Instead of a traditional time series, rectangular grid, or circular spiral, we can arrange temperature anomalies as a geometric **spirograph**.
 
-Each observation is placed outward from the center using the **golden angle** ($\approx 137.5^\circ$).
-So we can see older months (from 1880) in the core of the flower, while recent years are at the outer edge.
+In a spirograph, a smaller circle rolls inside a larger fixed circle. The trajectory of a drawing point at distance d from the rolling center traces harmonious orbital loops. 
+
+Here, the temperature anomaly directly controls the **reach of the pen (d)**:
+- **Colder years (blue)** keep the pen tight, forming compact internal orbits.
+- **Warmer years (red)** push the pen farther out, causing the petals to expand outward as the climate warms over time.
 
 ```{r}
-golden_angle <- pi * (3 - sqrt(5))
-
-sunflower <- temp |>
-  arrange(Year, month) |>
+annual_spiro <- temp |>
+  group_by(Year) |>
+  summarise(anomaly = mean(anomaly), .groups = "drop") |>
   mutate(
-    n = row_number(),
-    angle = n * golden_angle,
-    radius = sqrt(n),
-    x = radius * cos(angle),
-    y = radius * sin(angle)
+    year_idx = row_number(),
+    theta_start = (year_idx - 1) * (2 * pi / 14.5)
   )
 
-art_plot <- ggplot(sunflower, aes(
-  x = x,
-  y = y,
-  color = anomaly,
-  size = anomaly
-)) +
-  geom_point(alpha = 0.85) +
+spiro_points <- annual_spiro |>
+  reframe(
+    {
+      t_seq <- seq(theta_start, theta_start + 2 * pi, length.out = 50)
+      R <- 8
+      r <- 3
+      d <- 4 + anomaly * 2.5
+      tibble(
+        x = (R - r) * cos(t_seq) + d * cos((R - r) / r * t_seq),
+        y = (R - r) * sin(t_seq) - d * sin((R - r) / r * t_seq)
+      )
+    },
+    .by = c(Year, anomaly)
+  )
+
+art_plot <- ggplot(spiro_points, aes(x = x, y = y, group = Year, color = anomaly)) +
+  geom_path(linewidth = 0.6, alpha = 0.75) +
   coord_equal() +
   scale_color_gradient2(
     low = "#2166AC",
@@ -104,27 +112,24 @@ art_plot <- ggplot(sunflower, aes(
     high = "#B2182B",
     midpoint = 0
   ) +
-  scale_size_continuous(
-    range = c(0.6, 3.2),
-    guide = "none"
-  ) +
   labs(
-    title = "The Climate Sunflower",
-    subtitle = "Monthly global temperature anomalies (1880–present)",
+    title = "The Climate Spirograph",
+    subtitle = "Annual global temperature anomalies (1880–present)",
     color = "°C",
   ) +
   theme_void() +
   theme(
-    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-    plot.subtitle = element_text(size = 10, hjust = 0.5, color = "grey30"),
-    plot.caption = element_text(size = 8, hjust = 0.5, color = "grey50"),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.title = element_text(face = "bold", size = 15, hjust = 0.5, margin = margin(t = 10, b = 5)),
+    plot.subtitle = element_text(size = 10, hjust = 0.5, color = "grey30", margin = margin(b = 10)),
     legend.position = "right"
   )
 
 art_plot
 
 ggsave(
-  filename = "climate_sunflower.png",
+  filename = "climate_spirograph.png",
   plot = art_plot,
   width = 8,
   height = 8,
@@ -133,15 +138,19 @@ ggsave(
 )
 ```
 
-- `golden_angle` defines the Fibonacci golden angle: $\pi(3 - \sqrt{5})$.
-- `n = row_number()` assigns a chronological index to each month from 1880 to the present.
-- `angle` rotates each successive month by one golden angle, while radius = sqrt(n) places later observations progressively farther from the center.
-- `x` and `y` convert the polar coordinates (radius, angle) into Cartesian coordinates.
-- `geom_point()` draws one seed per month, encoding the temperature anomaly through both **color** (color = anomaly) and **size** (size = anomaly).
-- `coord_equal()` preserves the circular symmetry of the phyllotaxis pattern.
-- `scale_color_gradient2()` uses the diverging blue–white–red climate palette centered at 0°C.
-- `theme_void()` removes axes and gridlines.
-- `ggsave()` exports the final artwork.
+- `annual_spiro` calculates the mean annual anomaly for each year from 1880 to the present.
+- `theta_start` rotates the initial orientation of each year by a fraction of a full circle (`2 * pi / 14.5`), distributing the petals symmetrically.
+- The radii $R = 8$ and $r = 3$ set the fixed and rolling circle sizes, creating an 8-petal spiral pattern.
+- `d = 4 + anomaly * 2.5` maps the temperature anomaly to the pen distance: negative anomalies create compact petals, while positive anomalies stretch the petals outward.
+- `x` and `y` compute the parametric coordinates using the spirograph (hypotrochoid) formulas:
+  $$x(t) = (R - r)\cos(t) + d\cos\left(\frac{R - r}{r}t\right)$$
+  $$y(t) = (R - r)\sin(t) - d\sin\left(\frac{R - r}{r}t\right)$$
+- `geom_path()` connects the points of each yearly orbit, colored by anomaly.
+- `coord_equal()` preserves the rotational geometry.
+- `scale_color_gradient2()` applies the classical climate palette: blue for cooler-than-average years, neutral white for baseline, and red for warmer years.
+- `theme_void()` removes all axes and gridlines to focus on the geometric composition.
+- `ggsave()` saves the final artwork.
+
 
 
 
