@@ -1,0 +1,148 @@
+---
+title: "Global warming through data"
+output:
+  html_document:
+    theme: spacelab
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+# cache results
+knitr::opts_chunk$set(cache=FALSE, echo = TRUE, eval = TRUE, message=FALSE, warning = FALSE, fig.align='center')
+```
+
+## Creative challenge
+
+Design your own piece of climate data art using the same dataset.
+
+You are free to experiment with geometric shapes, color palettes, transparency, repetition, coordinate transformations, and visual composition.
+
+Create an original visualization using `ggplot2` and the NASA GISTEMP dataset.
+
+Your artwork should satisfy three requirements:
+
+1. It must be generated programmatically from the dataset, rather than manually illustrated.
+2. At least one visual property (color, size, position, shape, or opacity) must encode a numerical variable.
+3. The visual composition must communicate a meaningful aspect of global warming.
+
+You may remove conventional statistical elements such as axes, titles, legends, and labels, but you must document how the data are mapped to the artwork.
+
+
+### Setup
+```{r}
+
+library(tidyverse)
+
+url <- paste0(
+  "https://data.giss.nasa.gov/gistemp/",
+  "tabledata_v4/GLB.Ts+dSST.csv"
+)
+
+temp_raw <- read_csv(
+  url,
+  skip = 1,
+  na = c("***", "****"),
+  show_col_types = FALSE
+)
+
+```
+
+```{r}
+temp <- temp_raw |>
+  select(Year, Jan:Dec) |>
+  pivot_longer(
+    cols = Jan:Dec,
+    names_to = "month",
+    values_to = "anomaly"
+  ) |>
+  mutate(
+    month = factor(month, levels = month.abb),
+    date = as.Date(
+      paste(Year, month, "01", sep = "-"),
+      format = "%Y-%b-%d"
+    )
+  ) |>
+  drop_na(anomaly)
+
+head(temp, n = 12)
+
+```
+
+
+### Climate data art: *The Climate Sunflower*
+
+Instead of a traditional time series, rectangular grid, or circular spiral, we can arrange monthly temperature anomalies using **phyllotaxis**: 
+the mathematical pattern found in sunflowers and other botanical structures.
+
+Each observation is placed outward from the center using the **golden angle** ($\approx 137.5^\circ$).
+So we can see older months (from 1880) in the core of the flower, while recent years are at the outer edge.
+
+```{r}
+golden_angle <- pi * (3 - sqrt(5))
+
+sunflower <- temp |>
+  arrange(Year, month) |>
+  mutate(
+    n = row_number(),
+    angle = n * golden_angle,
+    radius = sqrt(n),
+    x = radius * cos(angle),
+    y = radius * sin(angle)
+  )
+
+art_plot <- ggplot(sunflower, aes(
+  x = x,
+  y = y,
+  color = anomaly,
+  size = anomaly
+)) +
+  geom_point(alpha = 0.85) +
+  coord_equal() +
+  scale_color_gradient2(
+    low = "#2166AC",
+    mid = "#F7F7F7",
+    high = "#B2182B",
+    midpoint = 0
+  ) +
+  scale_size_continuous(
+    range = c(0.6, 3.2),
+    guide = "none"
+  ) +
+  labs(
+    title = "The Climate Sunflower",
+    subtitle = "Monthly global temperature anomalies (1880–present)",
+    color = "°C",
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5, color = "grey30"),
+    plot.caption = element_text(size = 8, hjust = 0.5, color = "grey50"),
+    legend.position = "right"
+  )
+
+art_plot
+
+ggsave(
+  filename = "climate_sunflower.png",
+  plot = art_plot,
+  width = 8,
+  height = 8,
+  dpi = 300,
+  bg = "white"
+)
+```
+
+- `golden_angle` defines the Fibonacci golden angle: $\pi(3 - \sqrt{5})$.
+- `n = row_number()` assigns a chronological index to each month from 1880 to the present.
+- `angle` rotates each successive month by one golden angle, while radius = sqrt(n) places later observations progressively farther from the center.
+- `x` and `y` convert the polar coordinates (radius, angle) into Cartesian coordinates.
+- `geom_point()` draws one seed per month, encoding the temperature anomaly through both **color** (color = anomaly) and **size** (size = anomaly).
+- `coord_equal()` preserves the circular symmetry of the phyllotaxis pattern.
+- `scale_color_gradient2()` uses the diverging blue–white–red climate palette centered at 0°C.
+- `theme_void()` removes axes and gridlines.
+- `ggsave()` exports the final artwork.
+
+
+
+
